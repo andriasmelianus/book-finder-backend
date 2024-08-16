@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Book;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -121,5 +122,60 @@ class BookController extends Controller
     public function destroy(Book $book)
     {
         //
+    }
+
+    /**
+     * Search book data.
+     *
+     * @param Request $request
+     * @return void
+     */
+    public function search(Request $request)
+    {
+        $this->responser->setData([]);
+
+        if ((bool)$request->keyword) {
+            $containsKeyword = '%' . $request->keyword . '%';
+            $booksFound = Book::where('title', 'LIKE', $containsKeyword)
+                ->orWhere('genre', 'LIKE', $containsKeyword)
+                ->orWhere('author', 'LIKE', $containsKeyword)
+                ->get();
+
+            $this->responser->setData($booksFound, true);
+        }
+
+        return $this->responser->send();
+    }
+
+    /**
+     * Increase book's vote value.
+     *
+     * @param Request $request
+     * @param Book $book
+     * @return void
+     */
+    public function vote(Request $request, Book $book)
+    {
+        if (!(bool)$book) {
+            return $this->responser
+                ->setAsNotFound()
+                ->send();
+        }
+
+        try {
+            DB::beginTransaction();
+            $book->vote_count = $book->vote_count + 1;
+            $book->save();
+            DB::commit();
+            $this->responser
+                ->setData($book);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            $this->responser
+                ->setAsServerFailure()
+                ->setErrorMessage($th->getMessage());
+        }
+
+        return $this->responser->send();
     }
 }
